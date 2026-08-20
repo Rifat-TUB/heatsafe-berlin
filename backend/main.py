@@ -94,7 +94,12 @@ def heat_zones():
 
 
 @app.get("/api/cooling-places/nearest")
-def nearest_cooling_place(lat: float, lon: float, limit: int = 1):
+def nearest_cooling_place(
+    lat: float,
+    lon: float,
+    limit: int = 1,
+    place_type: Literal["fountain", "park", "shade", "indoor", "water"] | None = None,
+):
     rows = query("""
         SELECT
             id,
@@ -108,12 +113,14 @@ def nearest_cooling_place(lat: float, lon: float, limit: int = 1):
                 ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
             )) AS distance_m
         FROM cooling_places
+        WHERE (%s::text IS NULL OR place_type = %s::text)
         ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
         LIMIT %s;
-    """, (lon, lat, lon, lat, limit))
+    """, (lon, lat, place_type, place_type, lon, lat, limit))
 
     return {
         "query_point": {"lat": lat, "lon": lon},
+        "place_type": place_type,
         "results": [
             {
                 "id": r[0],
@@ -161,7 +168,12 @@ def create_cooling_place(place: NewCoolingPlace):
 # GET: all cooling places within a radius (PostGIS ST_DWithin)
 # ---------------------------------------------------------------
 @app.get("/api/cooling-places/within")
-def cooling_places_within(lat: float, lon: float, radius_m: int = 500):
+def cooling_places_within(
+    lat: float,
+    lon: float,
+    radius_m: int = 500,
+    place_type: Literal["fountain", "park", "shade", "indoor", "water"] | None = None,
+):
     rows = query("""
         SELECT id, name, place_type, description,
                ST_Y(geom), ST_X(geom),
@@ -175,12 +187,14 @@ def cooling_places_within(lat: float, lon: float, radius_m: int = 500):
                   ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
                   %s
               )
+          AND (%s::text IS NULL OR place_type = %s::text)
         ORDER BY distance_m;
-    """, (lon, lat, lon, lat, radius_m))
+    """, (lon, lat, lon, lat, radius_m, place_type, place_type))
 
     return {
         "center": {"lat": lat, "lon": lon},
         "radius_m": radius_m,
+        "place_type": place_type,
         "count": len(rows),
         "results": [
             {

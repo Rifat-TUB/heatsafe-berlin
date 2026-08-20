@@ -225,13 +225,23 @@ function showNearest(lat, lon, label) {
     if (resultLayer) map.removeLayer(resultLayer);
     resultLayer = L.layerGroup().addTo(map);
 
-    fetch(API + '/api/cooling-places/nearest?lat=' + lat + '&lon=' + lon)
+    // The dropdown also narrows this search, so "nearest water"
+    // or "nearest shade" is possible, not only "nearest anything".
+    const type = currentType();
+
+    fetch(API + '/api/cooling-places/nearest?lat=' + lat + '&lon=' + lon +
+          (type ? '&place_type=' + type : ''))
         .then(res => res.json())
         .then(data => {
             const best = data.results[0];
-            if (!best) return;
+            if (!best) {
+                showMessage('No ' + (type || 'cooling place') +
+                            ' found in the database.', 5000);
+                return;
+            }
 
-            L.marker([lat, lon]).addTo(resultLayer).bindPopup(label);
+            L.marker([lat, lon]).addTo(resultLayer)
+                .bindPopup(label + (type ? '<br>Looking for: ' + type : ''));
 
             L.circleMarker([best.lat, best.lon], {
                 radius: 11,
@@ -266,8 +276,11 @@ function showWithin(lat, lon, radiusM) {
     if (resultLayer) map.removeLayer(resultLayer);
     resultLayer = L.layerGroup().addTo(map);
 
+    const type = currentType();
+
     fetch(API + '/api/cooling-places/within?lat=' + lat +
-          '&lon=' + lon + '&radius_m=' + radiusM)
+          '&lon=' + lon + '&radius_m=' + radiusM +
+          (type ? '&place_type=' + type : ''))
         .then(res => res.json())
         .then(data => {
             // L.circle takes its radius in METRES, so it stays
@@ -300,7 +313,9 @@ function showWithin(lat, lon, radiusM) {
 
             map.fitBounds(ring.getBounds(), { padding: [40, 40] });
 
-            const word = data.count === 1 ? 'cooling place' : 'cooling places';
+            const word = type
+                ? (data.count === 1 ? type : type + ' places')
+                : (data.count === 1 ? 'cooling place' : 'cooling places');
             showMessage(data.count + ' ' + word + ' within ' +
                         radiusM + ' m. Counted by PostGIS ST_DWithin.', 6000);
         })
