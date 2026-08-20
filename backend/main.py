@@ -3,6 +3,9 @@ import json
 import psycopg
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Literal
+from pydantic import BaseModel, Field
+
 
 app = FastAPI(
     title="HeatSafe Berlin API",
@@ -120,4 +123,33 @@ def nearest_cooling_place(lat: float, lon: float, limit: int = 1):
             }
             for r in rows
         ],
+    }
+
+# ---------------------------------------------------------------
+# POST: add a new cooling place (user-submitted)
+# ---------------------------------------------------------------
+class NewCoolingPlace(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    place_type: Literal["fountain", "park", "shade", "indoor", "water"]
+    description: str | None = None
+    lat: float = Field(ge=52.50, le=52.55)
+    lon: float = Field(ge=13.37, le=13.46)
+
+
+@app.post("/api/cooling-places", status_code=201)
+def create_cooling_place(place: NewCoolingPlace):
+    rows = query("""
+        INSERT INTO cooling_places (name, place_type, description, geom)
+        VALUES (%s, %s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))
+        RETURNING id, name, place_type, description, ST_Y(geom), ST_X(geom);
+    """, (place.name, place.place_type, place.description, place.lon, place.lat))
+
+    r = rows[0]
+    return {
+        "id": r[0],
+        "name": r[1],
+        "place_type": r[2],
+        "description": r[3],
+        "lat": r[4],
+        "lon": r[5],
     }
