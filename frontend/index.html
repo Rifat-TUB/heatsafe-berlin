@@ -93,6 +93,54 @@
             z-index: 1000;
             display: none;
         }
+
+        /* ---- Small screens (phones) ---------------------------------
+           Everything above stays exactly as it is on a desktop.
+           These rules only switch on when the screen is narrow.        */
+        @media (max-width: 600px) {
+
+            /* Give the map more room: shrink the header */
+            header { padding: 8px 12px; }
+            header h1 { font-size: 16px; }
+            header p  { font-size: 11px; }
+            #map { height: calc(100vh - 52px); }
+
+            /* Fingers need bigger targets than a mouse pointer */
+            .leaflet-bar a {
+                min-height: 34px;
+                line-height: 34px;
+                font-size: 13px;
+            }
+
+            /* Keep the controls narrow so they do not cover the map */
+            .filterbox { padding: 5px 7px; font-size: 11px; }
+            .filterbox select { width: 100px; }
+            .leaflet-control-layers-expanded {
+                padding: 5px 7px;
+                font-size: 11px;
+            }
+
+            /* A smaller legend, still readable */
+            .legend { padding: 6px 7px; font-size: 10px; line-height: 1.4; }
+            .legend b { font-size: 11px; }
+            .legend .swatch { width: 12px; height: 9px; margin-right: 4px; }
+            .legend .dot { width: 9px; height: 9px; margin-right: 4px; }
+
+            /* Messages sit along the bottom, clear of the controls
+               that run down the right-hand side of a narrow screen. */
+            #toast {
+                top: auto;
+                bottom: 70px;
+                left: 8px;
+                right: 8px;
+                transform: none;
+                max-width: none;
+                font-size: 12px;
+            }
+
+            /* Popups were sized for a desktop window */
+            .leaflet-popup-content { font-size: 12px; margin: 8px 10px; }
+        }
     </style>
 </head>
 <body>
@@ -411,7 +459,7 @@ makeButton('gpsBtn', 'Where am I', 'Use my current location');
 // ---- The add form, shown as a map popup ----
 function openAddForm(lat, lon) {
     const html =
-        '<div style="min-width:210px">' +
+        '<div style="min-width:190px;max-width:230px">' +
         '<b>Add a cooling place</b><br>' +
         '<small>' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '</small><br><br>' +
         '<input id="npName" placeholder="Name" style="width:100%;margin-bottom:6px">' +
