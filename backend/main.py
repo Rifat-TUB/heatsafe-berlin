@@ -153,3 +153,42 @@ def create_cooling_place(place: NewCoolingPlace):
         "lat": r[4],
         "lon": r[5],
     }
+
+# ---------------------------------------------------------------
+# GET: all cooling places within a radius (PostGIS ST_DWithin)
+# ---------------------------------------------------------------
+@app.get("/api/cooling-places/within")
+def cooling_places_within(lat: float, lon: float, radius_m: int = 500):
+    rows = query("""
+        SELECT id, name, place_type, description,
+               ST_Y(geom), ST_X(geom),
+               ST_Distance(
+                   geom::geography,
+                   ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+               ) AS distance_m
+        FROM cooling_places
+        WHERE ST_DWithin(
+                  geom::geography,
+                  ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
+                  %s
+              )
+        ORDER BY distance_m;
+    """, (lon, lat, lon, lat, radius_m))
+
+    return {
+        "center": {"lat": lat, "lon": lon},
+        "radius_m": radius_m,
+        "count": len(rows),
+        "results": [
+            {
+                "id": r[0],
+                "name": r[1],
+                "place_type": r[2],
+                "description": r[3],
+                "lat": r[4],
+                "lon": r[5],
+                "distance_m": int(r[6]),
+            }
+            for r in rows
+        ],
+    }
