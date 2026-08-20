@@ -129,13 +129,22 @@ fetch(API + '/api/heat-zones')
             }),
             onEachFeature: (feature, layer) => {
                 const p = feature.properties;
-                layer.bindPopup(
+                const html =
                     '<b>' + p.name + '</b><br>' +
                     'Risk level: ' + p.risk_level + '<br>' +
                     'Heat indicator: ' + p.temp_indicator + ' &deg;C<br>' +
                     'Surface: ' + p.surface_type + '<br>' +
-                    '<i>Source: ' + p.data_source + ' data</i>'
-                );
+                    '<i>Source: ' + p.data_source + ' data</i>';
+
+                // We open the popup ourselves instead of using bindPopup.
+                // bindPopup stops the click, so it would never reach the
+                // map handler and the tool buttons would not work here.
+                layer.on('click', function (ev) {
+                    if (!mode) {
+                        L.popup().setLatLng(ev.latlng)
+                                 .setContent(html).openOn(map);
+                    }
+                });
             }
         }).addTo(heatLayer);
     })
@@ -162,11 +171,17 @@ function loadCoolingPlaces() {
                 }),
                 onEachFeature: (feature, layer) => {
                     const p = feature.properties;
-                    layer.bindPopup(
+                    const html =
                         '<b>' + p.name + '</b><br>' +
                         'Type: ' + p.place_type + '<br>' +
-                        (p.description || '')
-                    );
+                        (p.description || '');
+
+                    layer.on('click', function (ev) {
+                        if (!mode) {
+                            L.popup().setLatLng(ev.latlng)
+                                     .setContent(html).openOn(map);
+                        }
+                    });
                 }
             }).addTo(coolingLayer);
         })
@@ -218,6 +233,52 @@ function showNearest(lat, lon, label) {
         .catch(err => console.error('Nearest failed:', err));
 }
 
+// ---- Show every cooling place within a radius (PostGIS ST_DWithin) ----
+function showWithin(lat, lon, radiusM) {
+    if (resultLayer) map.removeLayer(resultLayer);
+    resultLayer = L.layerGroup().addTo(map);
+
+    fetch(API + '/api/cooling-places/within?lat=' + lat +
+          '&lon=' + lon + '&radius_m=' + radiusM)
+        .then(res => res.json())
+        .then(data => {
+            // L.circle takes its radius in METRES, so it stays
+            // locked to the ground when the map is zoomed.
+            const ring = L.circle([lat, lon], {
+                radius: radiusM,
+                color: '#0b6623',
+                weight: 2,
+                fillColor: '#7ed957',
+                fillOpacity: 0.12
+            }).addTo(resultLayer);
+
+            L.marker([lat, lon]).addTo(resultLayer)
+                .bindPopup('Search centre');
+
+            data.results.forEach(function (p) {
+                L.circleMarker([p.lat, p.lon], {
+                    radius: 9,
+                    color: '#0b6623',
+                    fillColor: '#7ed957',
+                    fillOpacity: 1,
+                    weight: 3
+                }).addTo(resultLayer)
+                  .bindPopup(
+                      '<b>' + p.name + '</b><br>' +
+                      'Type: ' + p.place_type + '<br>' +
+                      '<b>Distance: ' + p.distance_m + ' m</b>'
+                  );
+            });
+
+            map.fitBounds(ring.getBounds(), { padding: [40, 40] });
+
+            const word = data.count === 1 ? 'cooling place' : 'cooling places';
+            showMessage(data.count + ' ' + word + ' within ' +
+                        radiusM + ' m. Counted by PostGIS ST_DWithin.', 6000);
+        })
+        .catch(err => console.error('Within failed:', err));
+}
+
 // ---- Mode handling: only one map-click job at a time ----
 let mode = null;
 let pending = null;
@@ -229,6 +290,8 @@ function setMode(newMode) {
         mode === 'find' ? 'Click the map...' : 'Find nearest';
     document.getElementById('addBtn').textContent =
         mode === 'add' ? 'Click the map...' : 'Add place';
+    document.getElementById('withinBtn').textContent =
+        mode === 'within' ? 'Click the map...' : 'Within 500 m';
     map.getContainer().style.cursor = mode ? 'crosshair' : '';
 }
 
@@ -248,7 +311,8 @@ legend.onAdd = function () {
         '<span class="swatch" style="background:' + riskColor.high + '"></span>High heat risk<br>' +
         '<span class="swatch" style="background:' + riskColor.medium + '"></span>Medium heat risk<br>' +
         '<span class="swatch" style="background:' + riskColor.low + '"></span>Low heat risk<br>' +
-        '<span class="dot"></span>Cooling place';
+        '<span class="dot"></span>Cooling place<br>' +
+        '<span class="dot" style="background:#7ed957;border-color:#0b6623"></span>Search result';
     L.DomEvent.disableClickPropagation(div);
     return div;
 };
@@ -271,6 +335,7 @@ function makeButton(id, label, title) {
 
 makeButton('findBtn', 'Find nearest', 'Find nearest cooling place');
 makeButton('addBtn', 'Add place', 'Add a new cooling place');
+makeButton('withinBtn', 'Within 500 m', 'Count cooling places within 500 m');
 makeButton('gpsBtn', 'Where am I', 'Use my current location');
 
 // ---- The add form, shown as a map popup ----
@@ -316,6 +381,12 @@ document.addEventListener('click', function (e) {
         setMode(mode === 'add' ? null : 'add');
         return;
     }
+    if (e.target.id === 'withinBtn') {
+        e.preventDefault();
+        setMode(mode === 'within' ? null : 'within');
+        return;
+    }
+
     if (e.target.id === 'gpsBtn') {
         e.preventDefault();
         setMode(null);
@@ -410,6 +481,8 @@ map.on('click', function (e) {
 
     if (mode === 'find') {
         showNearest(lat, lon, 'Your location');
+    } else if (mode === 'within') {
+        showWithin(lat, lon, 500);
     } else if (mode === 'add') {
         pending = { lat: lat, lon: lon };
         openAddForm(lat, lon);
