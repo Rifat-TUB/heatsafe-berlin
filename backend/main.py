@@ -59,7 +59,8 @@ def cooling_places(
                         'id', id,
                         'name', name,
                         'place_type', place_type,
-                        'description', description
+                        'description', description,
+                        'data_source', data_source
                     )
                 )
             ), '[]'::json)
@@ -149,8 +150,9 @@ class NewCoolingPlace(BaseModel):
 @app.post("/api/cooling-places", status_code=201)
 def create_cooling_place(place: NewCoolingPlace):
     rows = query("""
-        INSERT INTO cooling_places (name, place_type, description, geom)
-        VALUES (%s, %s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))
+        INSERT INTO cooling_places (name, place_type, description, data_source, geom)
+        VALUES (%s, %s, %s, 'user_submitted',
+                ST_SetSRID(ST_MakePoint(%s, %s), 4326))
         RETURNING id, name, place_type, description, ST_Y(geom), ST_X(geom);
     """, (place.name, place.place_type, place.description, place.lon, place.lat))
 

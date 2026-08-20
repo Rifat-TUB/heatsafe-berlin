@@ -12,6 +12,10 @@ CREATE TABLE cooling_places (
     place_type  TEXT NOT NULL
                 CHECK (place_type IN ('fountain','park','shade','indoor','water')),
     description TEXT,
+    -- Where this row came from. Lets the map and the reader tell
+    -- official open data apart from pilot points and user entries.
+    data_source TEXT NOT NULL DEFAULT 'pilot_seed'
+                CHECK (data_source IN ('pilot_seed','berlin_open_data','user_submitted')),
     geom        geometry(Point, 4326) NOT NULL
 );
 
@@ -26,15 +30,17 @@ CREATE TABLE heat_zones (
     risk_level     TEXT NOT NULL CHECK (risk_level IN ('high','medium','low')),
     temp_indicator NUMERIC(4,1),
     surface_type   TEXT,
-    data_source    TEXT NOT NULL DEFAULT 'demonstration',
+    data_source    TEXT NOT NULL DEFAULT 'self_digitized',
     geom           geometry(Polygon, 4326) NOT NULL
 );
 
 CREATE INDEX heat_zones_geom_idx ON heat_zones USING GIST (geom);
 
 -- ---------------------------------------------------------------
--- Data: cooling places (real locations around Alexanderplatz,
--- coordinates approximate)
+-- Data set 1: pilot cooling places
+-- The places themselves are real, but the coordinates were placed
+-- by hand for this pilot and are approximate.
+-- data_source falls back to its default value 'pilot_seed'.
 -- ---------------------------------------------------------------
 INSERT INTO cooling_places (name, place_type, description, geom) VALUES
     ('Neptunbrunnen', 'fountain', 'Grosser Brunnen am Rathaus mit Wasserflaeche und Sitzstufen',
@@ -70,20 +76,87 @@ INSERT INTO cooling_places (name, place_type, description, geom) VALUES
 
 -- ---------------------------------------------------------------
 -- Data: heat zones
--- DEMONSTRATION DATA. Polygons drawn by hand for this pilot.
--- risk_level and temp_indicator are illustrative estimates based on
--- visible land cover, NOT measured or modelled official values.
+--
+-- SELF-DIGITIZED DATA. Every polygon below was drawn by hand in
+-- geojson.io on top of satellite imagery for this pilot.
+--
+-- risk_level and temp_indicator are VISUAL ESTIMATES based on the
+-- land cover that is visible from the air (sealed surface, tree
+-- cover, water). They are NOT measured temperatures and NOT taken
+-- from any official climate model or sensor network. They are meant
+-- for relative comparison inside this pilot area only.
+--
+-- surface_type records what the dominant surface actually is, read
+-- from the same imagery.
 -- ---------------------------------------------------------------
 INSERT INTO heat_zones (name, risk_level, temp_indicator, surface_type, data_source, geom) VALUES
-    ('Alexanderplatz Zentrum', 'high', 38.5, 'sealed', 'demonstration',
-     ST_GeomFromText('POLYGON((13.4085 52.5235, 13.4175 52.5235, 13.418 52.5195, 13.409 52.5192, 13.4085 52.5235))', 4326)),
-    ('Rathausforum', 'high', 37.2, 'sealed', 'demonstration',
-     ST_GeomFromText('POLYGON((13.404 52.5205, 13.4105 52.5208, 13.4108 52.5168, 13.4045 52.5165, 13.404 52.5205))', 4326)),
-    ('Karl-Marx-Allee West', 'medium', 34.0, 'mixed', 'demonstration',
-     ST_GeomFromText('POLYGON((13.418 52.5215, 13.43 52.522, 13.4302 52.5185, 13.4182 52.518, 13.418 52.5215))', 4326)),
-    ('Spandauer Vorstadt', 'medium', 33.5, 'mixed', 'demonstration',
-     ST_GeomFromText('POLYGON((13.395 52.529, 13.406 52.5292, 13.4062 52.5245, 13.3952 52.5242, 13.395 52.529))', 4326)),
-    ('Volkspark Friedrichshain', 'low', 29.0, 'vegetated', 'demonstration',
-     ST_GeomFromText('POLYGON((13.427 52.53, 13.439 52.5305, 13.4392 52.525, 13.4272 52.5245, 13.427 52.53))', 4326)),
-    ('Spreeinsel Museumsinsel', 'low', 30.5, 'water_adjacent', 'demonstration',
-     ST_GeomFromText('POLYGON((13.3945 52.5215, 13.403 52.5218, 13.4032 52.517, 13.3947 52.5168, 13.3945 52.5215))', 4326));
+    ('Rathausforum', 'high', 37.2, 'sealed', 'self_digitized',
+     ST_GeomFromText('POLYGON((13.407043 52.519206, 13.409455 52.519206, 13.409455 52.517687, 13.40665 52.517548, 13.406663 52.518442, 13.407043 52.519206))', 4326)),
+
+    ('Alt Berlin', 'medium', 32.5, 'mixed', 'self_digitized',
+     ST_GeomFromText('POLYGON((13.408078 52.520317, 13.407502 52.51958, 13.40842 52.518632, 13.410507 52.518538, 13.410846 52.519481, 13.409619 52.519971, 13.408078 52.520317))', 4326)),
+
+    ('Alexanderplatz Zentrum', 'high', 38.2, 'sealed', 'self_digitized',
+     ST_GeomFromText('POLYGON((13.409326 52.523281, 13.407775 52.522072, 13.412598 52.518991, 13.416349 52.52051, 13.413218 52.522295, 13.409326 52.523281))', 4326)),
+
+    ('Spandauer Vorstadt', 'medium', 33.5, 'mixed', 'self_digitized',
+     ST_GeomFromText('POLYGON((13.395071 52.526287, 13.398504 52.526751, 13.402548 52.526024, 13.401505 52.523177, 13.394638 52.523734, 13.395071 52.526287))', 4326)),
+
+    ('Spreeinsel Museumsinsel', 'high', 38.2, 'sealed', 'self_digitized',
+     ST_GeomFromText('POLYGON((13.391353 52.519817, 13.391091 52.515641, 13.399314 52.515737, 13.399995 52.520072, 13.395229 52.521124, 13.391353 52.519817))', 4326)),
+
+    ('Volkspark Friedrichshain', 'low', 29.0, 'vegetated', 'self_digitized',
+     ST_GeomFromText('POLYGON((13.425871 52.528677, 13.422676 52.525299, 13.431685 52.523769, 13.437551 52.524247, 13.442842 52.526796, 13.440118 52.529792, 13.433413 52.530525, 13.425871 52.528677))', 4326)),
+
+    ('Strausberger Platz', 'medium', 33.8, 'mixed', 'self_digitized',
+     ST_GeomFromText('POLYGON((13.425019 52.520512, 13.434883 52.51986, 13.43863 52.51544, 13.428919 52.513206, 13.421808 52.518162, 13.425019 52.520512))', 4326)),
+
+    ('Neu-Coelln am Wasser', 'low', 30.7, 'water_adjacent', 'self_digitized',
+     ST_GeomFromText('POLYGON((13.406873 52.513004, 13.415799 52.514701, 13.426151 52.511212, 13.412326 52.507968, 13.40705 52.508782, 13.406873 52.513004))', 4326));
+
+-- ---------------------------------------------------------------
+-- Data set 2: official drinking fountains (Trinkbrunnen)
+--
+-- Source : Berlin Open Data portal, daten.berlin.de
+--          "Public drinking fountains in Friedrichshain-Kreuzberg"
+--          Provider: District Office Friedrichshain-Kreuzberg of
+--          Berlin - Surveying
+-- License: Data License Germany - Attribution - Version 2.0
+--          (dl-de-by-2.0)
+-- Attribution text required by the license:
+--          "Public drinking fountains in Friedrichshain-Kreuzberg"
+--
+-- The published file uses EPSG:25833 (ETRS89 / UTM zone 33N), where
+-- coordinates are metres, not degrees. The numbers below are copied
+-- unchanged from that file. PostGIS converts them to EPSG:4326 with
+-- ST_Transform, so no coordinate was edited by hand.
+--
+-- Only fountains near the Alexanderplatz pilot area are loaded.
+-- The dataset covers Friedrichshain-Kreuzberg, while Alexanderplatz
+-- lies in Mitte, so most of its fountains fall outside this pilot.
+-- ---------------------------------------------------------------
+INSERT INTO cooling_places (name, place_type, description, data_source, geom) VALUES
+    ('Trinkbrunnen Strausberger Platz', 'fountain',
+     'Oeffentlicher Trinkbrunnen, Betriebszeit Mai bis Oktober',
+     'berlin_open_data',
+     ST_Transform(ST_SetSRID(ST_MakePoint(393432.806, 5819892.440), 25833), 4326)),
+
+    ('Trinkbrunnen Volkspark Friedrichshain West', 'fountain',
+     'Oeffentlicher Trinkbrunnen, Betriebszeit Mai bis Oktober',
+     'berlin_open_data',
+     ST_Transform(ST_SetSRID(ST_MakePoint(393695.211, 5820980.256), 25833), 4326)),
+
+    ('Trinkbrunnen Karl-Marx-Allee', 'fountain',
+     'Oeffentlicher Trinkbrunnen, Betriebszeit Mai bis Oktober',
+     'berlin_open_data',
+     ST_Transform(ST_SetSRID(ST_MakePoint(393969.336, 5819785.539), 25833), 4326)),
+
+    ('Trinkbrunnen Bahnhof Berlin Ostbahnhof', 'fountain',
+     'Oeffentlicher Trinkbrunnen, Betriebszeit Mai bis Oktober',
+     'berlin_open_data',
+     ST_Transform(ST_SetSRID(ST_MakePoint(393723.958, 5819102.658), 25833), 4326)),
+
+    ('Trinkbrunnen Volkspark Friedrichshain Ost', 'fountain',
+     'Oeffentlicher Trinkbrunnen, Betriebszeit Mai bis Oktober',
+     'berlin_open_data',
+     ST_Transform(ST_SetSRID(ST_MakePoint(394110.594, 5820902.686), 25833), 4326));

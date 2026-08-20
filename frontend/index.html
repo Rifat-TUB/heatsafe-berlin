@@ -78,6 +78,9 @@
             font-size: 12px;
             padding: 2px;
         }
+        /* Leaflet gives divIcon a white box by default */
+        .src-icon { background: none; border: none; }
+        .legend svg { vertical-align: middle; margin-right: 5px; }
         #toast {
             position: fixed;
             top: 90px;
@@ -199,7 +202,13 @@ fetch(API + '/api/heat-zones')
                     'Risk level: ' + p.risk_level + '<br>' +
                     'Heat indicator: ' + p.temp_indicator + ' &deg;C<br>' +
                     'Surface: ' + p.surface_type + '<br>' +
-                    '<i>Source: ' + p.data_source + ' data</i>';
+                    '<i style="font-size:11px">Source: ' +
+                    (p.data_source === 'self_digitized'
+                        ? 'Self-digitized in geojson.io from satellite imagery.<br>' +
+                          'Risk level and temperature are visual estimates<br>' +
+                          'from land cover, not measured values.'
+                        : p.data_source) +
+                    '</i>';
 
                 // We open the popup ourselves instead of using bindPopup.
                 // bindPopup stops the click, so it would never reach the
@@ -215,6 +224,37 @@ fetch(API + '/api/heat-zones')
     })
     .catch(err => console.error('Heat zones failed:', err));
 
+
+// ---- Point symbols: the SHAPE says where a point came from ----
+// The map markers and the legend both call this, so the two can
+// never drift apart.
+function sourceSvg(src, size) {
+    const look = {
+        berlin_open_data: { fill: '#4a9fd8', line: '#1a5490', shape: 'square' },
+        pilot_seed:       { fill: '#4a9fd8', line: '#1a5490', shape: 'circle' },
+        user_submitted:   { fill: '#f0a44b', line: '#b35c00', shape: 'triangle' }
+    }[src] || { fill: '#4a9fd8', line: '#1a5490', shape: 'circle' };
+
+    const inner = {
+        square:   '<rect x="3.5" y="3.5" width="9" height="9" />',
+        triangle: '<polygon points="8,2.5 14,13.5 2,13.5" />',
+        circle:   '<circle cx="8" cy="8" r="5" />'
+    }[look.shape];
+
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 16 16">' +
+           '<g fill="' + look.fill + '" stroke="' + look.line +
+           '" stroke-width="2" stroke-linejoin="round">' + inner + '</g></svg>';
+}
+
+function sourceIcon(src) {
+    return L.divIcon({
+        html: sourceSvg(src, 18),
+        className: 'src-icon',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+        popupAnchor: [0, -9]
+    });
+}
 
 // ---- Cooling places (reloadable) ----
 // coolingLayer is a stable container that stays in the layer control.
@@ -238,19 +278,27 @@ function loadCoolingPlaces() {
         .then(data => {
             coolingLayer.clearLayers();
             L.geoJSON(data, {
-                pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
-                    radius: 7,
-                    color: '#1a5490',
-                    fillColor: '#4a9fd8',
-                    fillOpacity: 0.9,
-                    weight: 2
+                pointToLayer: (feature, latlng) => L.marker(latlng, {
+                    icon: sourceIcon(feature.properties.data_source)
                 }),
                 onEachFeature: (feature, layer) => {
                     const p = feature.properties;
+                    const sourceText = {
+                        berlin_open_data:
+                            'Berlin Open Data, dl-de-by-2.0:<br>' +
+                            'Public drinking fountains in Friedrichshain-Kreuzberg',
+                        pilot_seed:
+                            'Pilot data, coordinates placed by hand',
+                        user_submitted:
+                            'Added through this application'
+                    }[p.data_source] || p.data_source;
+
                     const html =
                         '<b>' + p.name + '</b><br>' +
                         'Type: ' + p.place_type + '<br>' +
-                        (p.description || '');
+                        (p.description || '') +
+                        '<br><i style="font-size:11px">Source: ' +
+                        sourceText + '</i>';
 
                     layer.on('click', function (ev) {
                         if (!mode) {
@@ -429,8 +477,12 @@ legend.onAdd = function () {
         '<span class="swatch" style="background:' + riskColor.high + '"></span>High heat risk<br>' +
         '<span class="swatch" style="background:' + riskColor.medium + '"></span>Medium heat risk<br>' +
         '<span class="swatch" style="background:' + riskColor.low + '"></span>Low heat risk<br>' +
-        '<span class="dot"></span>Cooling place<br>' +
-        '<span class="dot" style="background:#7ed957;border-color:#0b6623"></span>Search result';
+        '<span class="dot" style="background:#7ed957;border-color:#0b6623"></span>Search result' +
+        '<hr style="margin:5px 0;border:0;border-top:1px solid #ccc">' +
+        '<b>Cooling places</b>' +
+        sourceSvg('berlin_open_data', 14) + 'Official open data<br>' +
+        sourceSvg('pilot_seed', 14) + 'Placed by hand<br>' +
+        sourceSvg('user_submitted', 14) + 'Added by user';
     L.DomEvent.disableClickPropagation(div);
     return div;
 };
