@@ -61,6 +61,23 @@
             background: #4a9fd8;
             vertical-align: middle;
         }
+        .filterbox {
+            background: white;
+            padding: 7px 9px;
+            border-radius: 5px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            font-size: 12px;
+            color: #333;
+        }
+        .filterbox label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+        .filterbox select {
+            font-size: 12px;
+            padding: 2px;
+        }
         #toast {
             position: fixed;
             top: 90px;
@@ -156,8 +173,19 @@ fetch(API + '/api/heat-zones')
 // Its contents are cleared and refilled whenever we reload.
 let coolingLayer = L.layerGroup().addTo(map);
 
+// Reads the dropdown. Empty means "no filter at all".
+function currentType() {
+    const sel = document.getElementById('typeFilter');
+    return sel ? sel.value : '';
+}
+
 function loadCoolingPlaces() {
-    fetch(API + '/api/cooling-places')
+    // The filtering is done by SQL in the database, not in the browser.
+    const type = currentType();
+    const url = API + '/api/cooling-places' +
+                (type ? '?place_type=' + type : '');
+
+    fetch(url)
         .then(res => res.json())
         .then(data => {
             coolingLayer.clearLayers();
@@ -300,6 +328,33 @@ L.control.layers(null, {
     'Heat risk zones': heatLayer,
     'Cooling places': coolingLayer
 }, { collapsed: false }).addTo(map);
+
+// ---- Type filter (asks the API for one place_type only) ----
+const filterCtl = L.control({ position: 'topright' });
+
+filterCtl.onAdd = function () {
+    const div = L.DomUtil.create('div', 'filterbox');
+    div.innerHTML =
+        '<label for="typeFilter">Show type</label>' +
+        '<select id="typeFilter">' +
+        '<option value="">All types</option>' +
+        '<option value="fountain">fountain</option>' +
+        '<option value="park">park</option>' +
+        '<option value="shade">shade</option>' +
+        '<option value="indoor">indoor</option>' +
+        '<option value="water">water</option>' +
+        '</select>';
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+};
+
+filterCtl.addTo(map);
+
+document.addEventListener('change', function (e) {
+    if (e.target.id === 'typeFilter') {
+        loadCoolingPlaces();
+    }
+});
 
 // ---- Legend ----
 const legend = L.control({ position: 'bottomright' });
@@ -460,9 +515,17 @@ document.addEventListener('click', function (e) {
             if (res.status !== 201) throw new Error(readError(body));
             return body;
         }))
-        .then(() => {
+        .then(function (saved) {
             map.closePopup();
             loadCoolingPlaces();
+
+            // A place can be saved correctly and still not appear,
+            // because the active filter hides it. Say so plainly.
+            const type = currentType();
+            if (type && type !== saved.place_type) {
+                showMessage('Saved "' + saved.name + '" as ' + saved.place_type +
+                            ', but the current filter only shows ' + type + '.', 7000);
+            }
         })
         .catch(err => {
             msg.textContent = err.message;
