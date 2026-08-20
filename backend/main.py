@@ -45,7 +45,9 @@ def health():
 
 
 @app.get("/api/cooling-places")
-def cooling_places():
+def cooling_places(
+    place_type: Literal["fountain", "park", "shade", "indoor", "water"] | None = None
+):
     rows = query("""
         SELECT json_build_object(
             'type', 'FeatureCollection',
@@ -62,8 +64,9 @@ def cooling_places():
                 )
             ), '[]'::json)
         )
-        FROM cooling_places;
-    """)
+        FROM cooling_places
+        WHERE (%s::text IS NULL OR place_type = %s::text);
+    """, (place_type, place_type))
     return rows[0][0]
 @app.get("/api/heat-zones")
 def heat_zones():
