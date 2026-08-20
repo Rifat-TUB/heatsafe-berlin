@@ -146,6 +146,11 @@ function showNearest(lat, lon, label) {
                 weight: 3,
                 dashArray: '6 6'
             }).addTo(resultLayer);
+
+                        map.fitBounds(
+                [[lat, lon], [best.lat, best.lon]],
+                { padding: [70, 70], maxZoom: 16 }
+            );
         })
         .catch(err => console.error('Nearest failed:', err));
 }
@@ -179,6 +184,7 @@ function makeButton(id, label, title) {
 
 makeButton('findBtn', 'Find nearest', 'Find nearest cooling place');
 makeButton('addBtn', 'Add place', 'Add a new cooling place');
+makeButton('gpsBtn', 'Where am I', 'Use my current location');
 
 // ---- The add form, shown as a map popup ----
 function openAddForm(lat, lon) {
@@ -223,8 +229,37 @@ document.addEventListener('click', function (e) {
         setMode(mode === 'add' ? null : 'add');
         return;
     }
+    if (e.target.id === 'gpsBtn') {
+        e.preventDefault();
+        setMode(null);
+
+        if (!navigator.geolocation) {
+            alert('This browser does not support geolocation.');
+            return;
+        }
+
+        const target = e.target;
+        target.textContent = 'Locating...';
+
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                target.textContent = 'Where am I';
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                map.setView([lat, lon], 16);
+                showNearest(lat, lon, 'You are here (GPS)');
+            },
+            function (err) {
+                target.textContent = 'Where am I';
+                alert('Could not get your location: ' + err.message);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+        return;
+    }
 
     if (e.target.id === 'npSave') {
+
         e.preventDefault();
         const msg = document.getElementById('npMsg');
         const name = document.getElementById('npName').value.trim();
