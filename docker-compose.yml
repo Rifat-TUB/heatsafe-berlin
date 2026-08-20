@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: heatsafe_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: heatsafe
+      POSTGRES_PASSWORD: heatsafe_dev
+      POSTGRES_DB: heatsafe
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./database:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heatsafe -d heatsafe"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    container_name: heatsafe_api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://heatsafe:heatsafe_dev@db:5432/heatsafe
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    build: ./frontend
+    container_name: heatsafe_web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+volumes:
+  db_data:

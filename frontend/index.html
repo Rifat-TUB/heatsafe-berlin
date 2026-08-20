@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HeatSafe Berlin</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 20px;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+        header p {
+            margin: 4px 0 0;
+            font-size: 13px;
+        }
+        #map {
+            height: calc(100vh - 70px);
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>HeatSafe Berlin</h1>
+        <p>Heat risk and cooling places around Alexanderplatz</p>
+    </header>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      const API = "http://localhost:8000";
+
+const map = L.map('map').setView([52.5219, 13.4132], 15);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const riskColor = {
+    high: '#d73027',
+    medium: '#fc8d59',
+    low: '#91cf60'
+};
+
+// ---- Heat zones ----
+fetch(API + '/api/heat-zones')
+    .then(res => res.json())
+    .then(data => {
+        L.geoJSON(data, {
+            style: feature => ({
+                color: riskColor[feature.properties.risk_level],
+                weight: 2,
+                fillOpacity: 0.35
+            }),
+            onEachFeature: (feature, layer) => {
+                const p = feature.properties;
+                layer.bindPopup(
+                    '<b>' + p.name + '</b><br>' +
+                    'Risk level: ' + p.risk_level + '<br>' +
+                    'Heat indicator: ' + p.temp_indicator + ' &deg;C<br>' +
+                    'Surface: ' + p.surface_type + '<br>' +
+                    '<i>Source: ' + p.data_source + ' data</i>'
+                );
+            }
+        }).addTo(map);
+    })
+    .catch(err => console.error('Heat zones failed:', err));
+
+// ---- Cooling places ----
+fetch(API + '/api/cooling-places')
+    .then(res => res.json())
+    .then(data => {
+        L.geoJSON(data, {
+            pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+                radius: 7,
+                color: '#1a5490',
+                fillColor: '#4a9fd8',
+                fillOpacity: 0.9,
+                weight: 2
+            }),
+            onEachFeature: (feature, layer) => {
+                const p = feature.properties;
+                layer.bindPopup(
+                    '<b>' + p.name + '</b><br>' +
+                    'Type: ' + p.place_type + '<br>' +
+                    p.description
+                );
+            }
+        }).addTo(map);
+    })
+    .catch(err => console.error('Cooling places failed:', err));
+    // ---- Nearest cooling place ----
+let searchMode = false;
+let resultLayer = null;
+
+const btn = L.control({ position: 'topright' });
+btn.onAdd = function () {
+    const div = L.DomUtil.create('div', 'leaflet-bar');
+    div.innerHTML =
+        '<a href="#" id="findBtn" title="Find nearest cooling place" ' +
+        'style="width:auto;padding:0 10px;font-weight:bold;">Find nearest</a>';
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+};
+btn.addTo(map);
+
+document.addEventListener('click', function (e) {
+    if (e.target.id === 'findBtn') {
+        e.preventDefault();
+        searchMode = !searchMode;
+        e.target.textContent = searchMode ? 'Click the map...' : 'Find nearest';
+        map.getContainer().style.cursor = searchMode ? 'crosshair' : '';
+    }
+});
+
+map.on('click', function (e) {
+    if (!searchMode) return;
+
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+
+    if (resultLayer) map.removeLayer(resultLayer);
+    resultLayer = L.layerGroup().addTo(map);
+
+    fetch(API + '/api/cooling-places/nearest?lat=' + lat + '&lon=' + lon)
+        .then(res => res.json())
+        .then(data => {
+            const best = data.results[0];
+            if (!best) return;
+
+            L.marker([lat, lon]).addTo(resultLayer)
+                .bindPopup('Your location');
+
+            L.circleMarker([best.lat, best.lon], {
+                radius: 11,
+                color: '#0b6623',
+                fillColor: '#7ed957',
+                fillOpacity: 1,
+                weight: 3
+            }).addTo(resultLayer)
+              .bindPopup(
+                  '<b>' + best.name + '</b><br>' +
+                  'Type: ' + best.place_type + '<br>' +
+                  '<b>Distance: ' + best.distance_m + ' m</b><br>' +
+                  '<i>Calculated by PostGIS</i>'
+              ).openPopup();
+
+            L.polyline([[lat, lon], [best.lat, best.lon]], {
+                color: '#0b6623',
+                weight: 3,
+                dashArray: '6 6'
+            }).addTo(resultLayer);
+        })
+        .catch(err => console.error('Nearest failed:', err));
+
+    searchMode = false;
+    document.getElementById('findBtn').textContent = 'Find nearest';
+    map.getContainer().style.cursor = '';
+});
+    </script>
+</body>
+</html>
