@@ -1,0 +1,460 @@
+{
+  "type": "FeatureCollection",
+  "name": "trinkbrunnen",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kottbusser Tor",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [392672.488, 5817675.476]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Park am Gleisdreieck",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [389515.941, 5817835.844]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Volkspark Friedrichshain",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [393695.211, 5820980.256]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Park am Gleisdreieck",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [389590.606, 5817419.083]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bahnhof Berlin Ostbahnhof",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [393723.958, 5819102.658]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Comeniusplatz",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [394725.471, 5819046.246]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Forckenbeckplatz",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [395565.111, 5819978.859]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mariannenplatz",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [393069.102, 5818223.966]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Zickenplatz / Kottbusser Damm",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [392916.853896662, 5816829.23609195]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Paul-Lincke-Ufer",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [393492.325, 5817039.731]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Karl-Marx-Allee 105",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [394462.057, 5819706.973]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Volkspark Friedrichshain",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [394110.594, 5820902.686]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "U-Bahnhof Südstern",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [391895.946, 5816676.073]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Admiralbrücke",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [392374.038, 5817268.235]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Karl-Marx-Allee",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [393969.336, 5819785.539]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Marheinekeplatz",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [391083.514, 5816647.675]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Lausitzer Platz 11",
+        "category": "Trinkbrunnen rollstuhlgerecht",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": "barrierefrei"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [393468.066, 5817895.703]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Skalitzer Park",
+        "category": "Trinkbrunnen rollstuhlgerecht",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": "barrierefrei"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [392969.841, 5817747.089]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Besselpark",
+        "category": "Trinkbrunnen rollstuhlgerecht",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": "barrierefrei"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [390804.589, 5818326.642]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Park an der Ritterstraße",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": "in Bau"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [391783.813542281, 5818198.2815183]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Theodor-Wolff-Park",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [390823.107843929, 5817977.49871655]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Strausberger Platz",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [393432.806, 5819892.44]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Weberwiese",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [394341.395, 5819573.866]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Samariterstraße",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [395989.574, 5819985.779]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Schreinerstraße",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [395978.591, 5819664.393]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Comeniusplatz",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [394633.154, 5818908.64]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Deutsches Technikmuseum",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [389887.165, 5817507.29]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Rudolfplatz",
+        "category": "Trinkbrunnen rollstuhlgerecht",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": "barrierefrei"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [395135.913, 5818155.683]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Schleidenplatz",
+        "category": "Trinkbrunnen rollstuhlgerecht",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": "barrierefrei"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [396334.992, 5819469.88]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tempelhofer Feld (Eingang Columbiadamm)",
+        "category": "Trinkbrunnen rollstuhlgerecht",
+        "info": "Betriebszeit: Mai bis Oktober  ",
+        "besonders": "barrierefrei"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [391829.531565879, 5815865.6708521]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Lausitzer Platz 14/15",
+        "category": "Trinkbrunnen rollstuhlgerecht",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": "barrierefrei"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [393528.288, 5817858.711]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mehringplatz",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [390833.886, 5817837.133]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Prinzenstraße, Bücklerstatue",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [391778.285650689, 5817492.56357324]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Prinzenstraße, Sommerbad Kreuzberg",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [391793.746931044, 5817625.09213008]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Annemirl-Bauer-Platz",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [395926.70440904, 5818344.59106869]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Wismarplatz",
+        "category": "Trinkbrunnen",
+        "info": "Betriebszeit: Mai bis Oktober",
+        "besonders": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [395755.296857441, 5818986.5065975]
+      }
+    }
+  ]
+}
