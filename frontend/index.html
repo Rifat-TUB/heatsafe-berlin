@@ -80,59 +80,42 @@ fetch(API + '/api/heat-zones')
     })
     .catch(err => console.error('Heat zones failed:', err));
 
-// ---- Cooling places ----
-fetch(API + '/api/cooling-places')
-    .then(res => res.json())
-    .then(data => {
-        L.geoJSON(data, {
-            pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
-                radius: 7,
-                color: '#1a5490',
-                fillColor: '#4a9fd8',
-                fillOpacity: 0.9,
-                weight: 2
-            }),
-            onEachFeature: (feature, layer) => {
-                const p = feature.properties;
-                layer.bindPopup(
-                    '<b>' + p.name + '</b><br>' +
-                    'Type: ' + p.place_type + '<br>' +
-                    p.description
-                );
-            }
-        }).addTo(map);
-    })
-    .catch(err => console.error('Cooling places failed:', err));
-    // ---- Nearest cooling place ----
-let searchMode = false;
+
+// ---- Cooling places (reloadable) ----
+let coolingLayer = null;
+
+function loadCoolingPlaces() {
+    fetch(API + '/api/cooling-places')
+        .then(res => res.json())
+        .then(data => {
+            if (coolingLayer) map.removeLayer(coolingLayer);
+            coolingLayer = L.geoJSON(data, {
+                pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+                    radius: 7,
+                    color: '#1a5490',
+                    fillColor: '#4a9fd8',
+                    fillOpacity: 0.9,
+                    weight: 2
+                }),
+                onEachFeature: (feature, layer) => {
+                    const p = feature.properties;
+                    layer.bindPopup(
+                        '<b>' + p.name + '</b><br>' +
+                        'Type: ' + p.place_type + '<br>' +
+                        (p.description || '')
+                    );
+                }
+            }).addTo(map);
+        })
+        .catch(err => console.error('Cooling places failed:', err));
+}
+
+loadCoolingPlaces();
+
+// ---- Shared: show the nearest cooling place from a point ----
 let resultLayer = null;
 
-const btn = L.control({ position: 'topright' });
-btn.onAdd = function () {
-    const div = L.DomUtil.create('div', 'leaflet-bar');
-    div.innerHTML =
-        '<a href="#" id="findBtn" title="Find nearest cooling place" ' +
-        'style="width:auto;padding:0 10px;font-weight:bold;">Find nearest</a>';
-    L.DomEvent.disableClickPropagation(div);
-    return div;
-};
-btn.addTo(map);
-
-document.addEventListener('click', function (e) {
-    if (e.target.id === 'findBtn') {
-        e.preventDefault();
-        searchMode = !searchMode;
-        e.target.textContent = searchMode ? 'Click the map...' : 'Find nearest';
-        map.getContainer().style.cursor = searchMode ? 'crosshair' : '';
-    }
-});
-
-map.on('click', function (e) {
-    if (!searchMode) return;
-
-    const lat = e.latlng.lat;
-    const lon = e.latlng.lng;
-
+function showNearest(lat, lon, label) {
     if (resultLayer) map.removeLayer(resultLayer);
     resultLayer = L.layerGroup().addTo(map);
 
@@ -142,8 +125,7 @@ map.on('click', function (e) {
             const best = data.results[0];
             if (!best) return;
 
-            L.marker([lat, lon]).addTo(resultLayer)
-                .bindPopup('Your location');
+            L.marker([lat, lon]).addTo(resultLayer).bindPopup(label);
 
             L.circleMarker([best.lat, best.lon], {
                 radius: 11,
@@ -166,10 +148,137 @@ map.on('click', function (e) {
             }).addTo(resultLayer);
         })
         .catch(err => console.error('Nearest failed:', err));
+}
 
-    searchMode = false;
-    document.getElementById('findBtn').textContent = 'Find nearest';
-    map.getContainer().style.cursor = '';
+// ---- Mode handling: only one map-click job at a time ----
+let mode = null;
+let pending = null;
+
+function setMode(newMode) {
+    mode = newMode;
+    document.getElementById('findBtn').textContent =
+        mode === 'find' ? 'Click the map...' : 'Find nearest';
+    document.getElementById('addBtn').textContent =
+        mode === 'add' ? 'Click the map...' : 'Add place';
+    map.getContainer().style.cursor = mode ? 'crosshair' : '';
+}
+
+// ---- Buttons ----
+function makeButton(id, label, title) {
+    const c = L.control({ position: 'topright' });
+    c.onAdd = function () {
+        const div = L.DomUtil.create('div', 'leaflet-bar');
+        div.innerHTML =
+            '<a href="#" id="' + id + '" title="' + title + '" ' +
+            'style="width:auto;padding:0 10px;font-weight:bold;">' + label + '</a>';
+        L.DomEvent.disableClickPropagation(div);
+        return div;
+    };
+    c.addTo(map);
+}
+
+makeButton('findBtn', 'Find nearest', 'Find nearest cooling place');
+makeButton('addBtn', 'Add place', 'Add a new cooling place');
+
+// ---- The add form, shown as a map popup ----
+function openAddForm(lat, lon) {
+    const html =
+        '<div style="min-width:210px">' +
+        '<b>Add a cooling place</b><br>' +
+        '<small>' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '</small><br><br>' +
+        '<input id="npName" placeholder="Name" style="width:100%;margin-bottom:6px">' +
+        '<select id="npType" style="width:100%;margin-bottom:6px">' +
+        '<option value="fountain">fountain</option>' +
+        '<option value="park">park</option>' +
+        '<option value="shade">shade</option>' +
+        '<option value="indoor">indoor</option>' +
+        '<option value="water">water</option>' +
+        '</select>' +
+        '<input id="npDesc" placeholder="Description (optional)" style="width:100%;margin-bottom:8px">' +
+        '<button id="npSave" style="width:100%;padding:5px">Save</button>' +
+        '<div id="npMsg" style="color:#c0392b;margin-top:6px;font-size:12px"></div>' +
+        '</div>';
+
+    L.popup().setLatLng([lat, lon]).setContent(html).openOn(map);
+}
+
+function readError(body) {
+    if (body && Array.isArray(body.detail) && body.detail.length) {
+        return body.detail[0].msg || 'Invalid input.';
+    }
+    return 'Could not save.';
+}
+
+// ---- All button clicks ----
+document.addEventListener('click', function (e) {
+
+    if (e.target.id === 'findBtn') {
+        e.preventDefault();
+        setMode(mode === 'find' ? null : 'find');
+        return;
+    }
+
+    if (e.target.id === 'addBtn') {
+        e.preventDefault();
+        setMode(mode === 'add' ? null : 'add');
+        return;
+    }
+
+    if (e.target.id === 'npSave') {
+        e.preventDefault();
+        const msg = document.getElementById('npMsg');
+        const name = document.getElementById('npName').value.trim();
+
+        if (!name) {
+            msg.textContent = 'Name is required.';
+            return;
+        }
+
+        e.target.textContent = 'Saving...';
+        msg.textContent = '';
+
+        fetch(API + '/api/cooling-places', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                place_type: document.getElementById('npType').value,
+                description: document.getElementById('npDesc').value.trim() || null,
+                lat: pending.lat,
+                lon: pending.lon
+            })
+        })
+        .then(res => res.json().then(body => {
+            if (res.status !== 201) throw new Error(readError(body));
+            return body;
+        }))
+        .then(() => {
+            map.closePopup();
+            loadCoolingPlaces();
+        })
+        .catch(err => {
+            msg.textContent = err.message;
+            const b = document.getElementById('npSave');
+            if (b) b.textContent = 'Save';
+        });
+    }
+});
+
+// ---- Map clicks ----
+map.on('click', function (e) {
+    if (!mode) return;
+
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+
+    if (mode === 'find') {
+        showNearest(lat, lon, 'Your location');
+    } else if (mode === 'add') {
+        pending = { lat: lat, lon: lon };
+        openAddForm(lat, lon);
+    }
+
+    setMode(null);
 });
     </script>
 </body>
