@@ -29,6 +29,38 @@
             height: calc(100vh - 70px);
             width: 100%;
         }
+        .legend {
+            background: white;
+            padding: 8px 10px;
+            border-radius: 5px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            font-size: 12px;
+            line-height: 1.7;
+            color: #333;
+        }
+        .legend b {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+        .legend .swatch {
+            display: inline-block;
+            width: 16px;
+            height: 12px;
+            margin-right: 6px;
+            border: 1px solid #555;
+            vertical-align: middle;
+        }
+        .legend .dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-right: 6px;
+            border-radius: 50%;
+            border: 2px solid #1a5490;
+            background: #4a9fd8;
+            vertical-align: middle;
+        }
         #toast {
             position: fixed;
             top: 90px;
@@ -84,6 +116,8 @@ const riskColor = {
 };
 
 // ---- Heat zones ----
+let heatLayer = L.layerGroup().addTo(map);
+
 fetch(API + '/api/heat-zones')
     .then(res => res.json())
     .then(data => {
@@ -103,20 +137,22 @@ fetch(API + '/api/heat-zones')
                     '<i>Source: ' + p.data_source + ' data</i>'
                 );
             }
-        }).addTo(map);
+        }).addTo(heatLayer);
     })
     .catch(err => console.error('Heat zones failed:', err));
 
 
 // ---- Cooling places (reloadable) ----
-let coolingLayer = null;
+// coolingLayer is a stable container that stays in the layer control.
+// Its contents are cleared and refilled whenever we reload.
+let coolingLayer = L.layerGroup().addTo(map);
 
 function loadCoolingPlaces() {
     fetch(API + '/api/cooling-places')
         .then(res => res.json())
         .then(data => {
-            if (coolingLayer) map.removeLayer(coolingLayer);
-            coolingLayer = L.geoJSON(data, {
+            coolingLayer.clearLayers();
+            L.geoJSON(data, {
                 pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
                     radius: 7,
                     color: '#1a5490',
@@ -132,7 +168,7 @@ function loadCoolingPlaces() {
                         (p.description || '')
                     );
                 }
-            }).addTo(map);
+            }).addTo(coolingLayer);
         })
         .catch(err => console.error('Cooling places failed:', err));
 }
@@ -195,6 +231,29 @@ function setMode(newMode) {
         mode === 'add' ? 'Click the map...' : 'Add place';
     map.getContainer().style.cursor = mode ? 'crosshair' : '';
 }
+
+// ---- Layer control: switch each layer on and off ----
+L.control.layers(null, {
+    'Heat risk zones': heatLayer,
+    'Cooling places': coolingLayer
+}, { collapsed: false }).addTo(map);
+
+// ---- Legend ----
+const legend = L.control({ position: 'bottomright' });
+
+legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'legend');
+    div.innerHTML =
+        '<b>Legend</b>' +
+        '<span class="swatch" style="background:' + riskColor.high + '"></span>High heat risk<br>' +
+        '<span class="swatch" style="background:' + riskColor.medium + '"></span>Medium heat risk<br>' +
+        '<span class="swatch" style="background:' + riskColor.low + '"></span>Low heat risk<br>' +
+        '<span class="dot"></span>Cooling place';
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+};
+
+legend.addTo(map);
 
 // ---- Buttons ----
 function makeButton(id, label, title) {
