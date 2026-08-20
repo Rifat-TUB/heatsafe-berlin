@@ -29,6 +29,21 @@
             height: calc(100vh - 70px);
             width: 100%;
         }
+        #toast {
+            position: fixed;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(44, 62, 80, 0.95);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 5px;
+            font-size: 13px;
+            line-height: 1.4;
+            max-width: 340px;
+            z-index: 1000;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -38,10 +53,22 @@
     </header>
 
     <div id="map"></div>
+    <div id="toast"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
       const API = "http://localhost:8000";
+
+// ---- Small message shown on top of the map (replaces alert) ----
+function showMessage(text, ms) {
+    const t = document.getElementById('toast');
+    t.textContent = text;
+    t.style.display = 'block';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function () {
+        t.style.display = 'none';
+    }, ms || 5000);
+}
 
 const map = L.map('map').setView([52.5219, 13.4132], 15);
 
@@ -147,7 +174,7 @@ function showNearest(lat, lon, label) {
                 dashArray: '6 6'
             }).addTo(resultLayer);
 
-                        map.fitBounds(
+            map.fitBounds(
                 [[lat, lon], [best.lat, best.lon]],
                 { padding: [70, 70], maxZoom: 16 }
             );
@@ -158,6 +185,7 @@ function showNearest(lat, lon, label) {
 // ---- Mode handling: only one map-click job at a time ----
 let mode = null;
 let pending = null;
+let gpsBusy = false;
 
 function setMode(newMode) {
     mode = newMode;
@@ -233,25 +261,40 @@ document.addEventListener('click', function (e) {
         e.preventDefault();
         setMode(null);
 
+        // Ignore a second click while a request is still running
+        if (gpsBusy) return;
+                document.getElementById('toast').style.display = 'none';
+
         if (!navigator.geolocation) {
-            alert('This browser does not support geolocation.');
+            showMessage('This browser does not support geolocation.');
             return;
         }
 
         const target = e.target;
+        gpsBusy = true;
         target.textContent = 'Locating...';
 
         navigator.geolocation.getCurrentPosition(
             function (pos) {
+                gpsBusy = false;
                 target.textContent = 'Where am I';
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                map.setView([lat, lon], 16);
-                showNearest(lat, lon, 'You are here (GPS)');
+                showNearest(pos.coords.latitude, pos.coords.longitude,
+                            'You are here (GPS)');
             },
             function (err) {
+                gpsBusy = false;
                 target.textContent = 'Where am I';
-                alert('Could not get your location: ' + err.message);
+                let why;
+                if (err.code === 1) {
+                    why = 'Permission was refused. Click the location icon in the address bar, choose Allow, then reload the page.';
+                } else if (err.code === 2) {
+                    why = 'Position unavailable. Check that location is switched on in Windows settings.';
+                } else if (err.code === 3) {
+                    why = 'It took too long. Please try again.';
+                } else {
+                    why = err.message;
+                }
+                showMessage('Could not get your location. ' + why, 8000);
             },
             { enableHighAccuracy: true, timeout: 10000 }
         );
