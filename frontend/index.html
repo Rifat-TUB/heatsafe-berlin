@@ -261,6 +261,20 @@ function sourceIcon(src) {
 // Its contents are cleared and refilled whenever we reload.
 let coolingLayer = L.layerGroup().addTo(map);
 
+// Everything currently drawn, keyed by id. The Edit button only
+// carries an id, so this is where it looks up the current values.
+let placesById = {};
+
+// Names and descriptions can be typed by a user, so they must never
+// be dropped into HTML unescaped.
+function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 // Reads the dropdown. Empty means "no filter at all".
 function currentType() {
     const sel = document.getElementById('typeFilter');
@@ -277,28 +291,51 @@ function loadCoolingPlaces() {
         .then(res => res.json())
         .then(data => {
             coolingLayer.clearLayers();
+            placesById = {};
             L.geoJSON(data, {
                 pointToLayer: (feature, latlng) => L.marker(latlng, {
                     icon: sourceIcon(feature.properties.data_source)
                 }),
                 onEachFeature: (feature, layer) => {
                     const p = feature.properties;
+
+                    // GeoJSON coordinates are [lon, lat], in that order.
+                    const c = feature.geometry.coordinates;
+                    placesById[p.id] = {
+                        id: p.id,
+                        name: p.name,
+                        place_type: p.place_type,
+                        description: p.description,
+                        data_source: p.data_source,
+                        lat: c[1],
+                        lon: c[0]
+                    };
+
                     const sourceText = {
                         berlin_open_data:
-                            'Berlin Open Data, dl-de-by-2.0:<br>' +
-                            'Public drinking fountains in Friedrichshain-Kreuzberg',
+                            'Berlin Open Data (dl-de-by-2.0)',
                         pilot_seed:
-                            'Pilot data, coordinates placed by hand',
+                            'Positioned by me from OSM &mdash; approximate',
                         user_submitted:
-                            'Added through this application'
+                            'Added in-app, unverified'
                     }[p.data_source] || p.data_source;
 
+                    // Official open data is read-only. The API answers 403
+                    // for these records, so showing an Edit button that
+                    // cannot work would only mislead.
+                    const editPart = (p.data_source === 'berlin_open_data')
+                        ? '<br><i style="font-size:11px;color:#777">' +
+                          'Read only, so the official record stays as published.</i>'
+                        : '<br><button class="editBtn" data-id="' + p.id + '" ' +
+                          'style="margin-top:7px;padding:3px 9px;cursor:pointer">Edit</button>';
+
                     const html =
-                        '<b>' + p.name + '</b><br>' +
-                        'Type: ' + p.place_type + '<br>' +
-                        (p.description || '') +
+                        '<b>' + esc(p.name) + '</b><br>' +
+                        'Type: ' + esc(p.place_type) + '<br>' +
+                        esc(p.description || '') +
                         '<br><i style="font-size:11px">Source: ' +
-                        sourceText + '</i>';
+                        sourceText + '</i>' +
+                        editPart;
 
                     layer.on('click', function (ev) {
                         if (!mode) {
@@ -337,9 +374,10 @@ function showNearest(lat, lon, label) {
             }
 
             L.marker([lat, lon]).addTo(resultLayer)
-                .bindPopup(label + (type ? '<br>Looking for: ' + type : ''));
+                .bindPopup(label + (type ? '<br>Looking for: ' + type : ''),
+                           { autoPan: false });
 
-            L.circleMarker([best.lat, best.lon], {
+            const bestMarker = L.circleMarker([best.lat, best.lon], {
                 radius: 11,
                 color: '#0b6623',
                 fillColor: '#7ed957',
@@ -347,11 +385,12 @@ function showNearest(lat, lon, label) {
                 weight: 3
             }).addTo(resultLayer)
               .bindPopup(
-                  '<b>' + best.name + '</b><br>' +
-                  'Type: ' + best.place_type + '<br>' +
+                  '<b>' + esc(best.name) + '</b><br>' +
+                  'Type: ' + esc(best.place_type) + '<br>' +
                   '<b>Distance: ' + best.distance_m + ' m</b><br>' +
-                  '<i>Calculated by PostGIS</i>'
-              ).openPopup();
+                  '<i>Calculated by PostGIS</i>',
+                  { autoPan: false }
+              );
 
             L.polyline([[lat, lon], [best.lat, best.lon]], {
                 color: '#0b6623',
@@ -359,10 +398,26 @@ function showNearest(lat, lon, label) {
                 dashArray: '6 6'
             }).addTo(resultLayer);
 
-            map.fitBounds(
-                [[lat, lon], [best.lat, best.lon]],
-                { padding: [70, 70], maxZoom: 16 }
-            );
+            // Fit first, open the popup afterwards. A popup with autoPan
+            // on would shift the map again and push one of the two
+            // points off the screen.
+            //
+            // pad(0.25) grows the box by a quarter on every side before
+            // fitting. Without it Leaflet picks the largest zoom where the
+            // two points only just fit, so a marker ends up sitting on the
+            // very edge of the window and looks cut off.
+            const bounds = L.latLngBounds(
+                [lat, lon],
+                [best.lat, best.lon]
+            ).pad(0.25);
+
+            map.fitBounds(bounds, {
+                paddingTopLeft: [40, 120],
+                paddingBottomRight: [40, 40],
+                maxZoom: 16
+            });
+
+            bestMarker.openPopup();
         })
         .catch(err => console.error('Nearest failed:', err));
 }
@@ -481,8 +536,8 @@ legend.onAdd = function () {
         '<hr style="margin:5px 0;border:0;border-top:1px solid #ccc">' +
         '<b>Cooling places</b>' +
         sourceSvg('berlin_open_data', 14) + 'Official open data<br>' +
-        sourceSvg('pilot_seed', 14) + 'Placed by hand<br>' +
-        sourceSvg('user_submitted', 14) + 'Added by user';
+        sourceSvg('pilot_seed', 14) + 'Positioned by me<br>' +
+        sourceSvg('user_submitted', 14) + 'Added by an app user';
     L.DomEvent.disableClickPropagation(div);
     return div;
 };
@@ -530,15 +585,117 @@ function openAddForm(lat, lon) {
     L.popup().setLatLng([lat, lon]).setContent(html).openOn(map);
 }
 
+// ---- The edit form, shown as a map popup ----
+// Same shape as the add form, but pre-filled and it sends PUT.
+// lat and lon are editable, so this really updates the geometry
+// in PostGIS and not only the attributes.
+function openEditForm(place) {
+    const types = ['fountain', 'park', 'shade', 'indoor', 'water'];
+    const options = types.map(function (t) {
+        return '<option value="' + t + '"' +
+               (t === place.place_type ? ' selected' : '') + '>' + t + '</option>';
+    }).join('');
+
+    const html =
+        '<div style="min-width:200px;max-width:240px">' +
+        '<b>Edit cooling place</b><br>' +
+        '<small>Record id ' + place.id + '</small><br><br>' +
+        '<input id="epName" value="' + esc(place.name) +
+        '" style="width:100%;margin-bottom:6px">' +
+        '<select id="epType" style="width:100%;margin-bottom:6px">' + options + '</select>' +
+        '<input id="epDesc" placeholder="Description (optional)" value="' +
+        esc(place.description || '') + '" style="width:100%;margin-bottom:6px">' +
+        '<div style="display:flex;gap:5px">' +
+        '<input id="epLat" value="' + place.lat + '" style="width:50%">' +
+        '<input id="epLon" value="' + place.lon + '" style="width:50%">' +
+        '</div>' +
+        '<small style="color:#777">Latitude, longitude. Change these to move the point.</small>' +
+        '<br><br>' +
+        '<button id="epSave" data-id="' + place.id +
+        '" style="width:100%;padding:5px;cursor:pointer">Save changes</button>' +
+        '<div id="epMsg" style="color:#c0392b;margin-top:6px;font-size:12px"></div>' +
+        '</div>';
+
+    L.popup().setLatLng([place.lat, place.lon]).setContent(html).openOn(map);
+}
+
 function readError(body) {
+    // 422 from Pydantic sends a list of problems
     if (body && Array.isArray(body.detail) && body.detail.length) {
         return body.detail[0].msg || 'Invalid input.';
+    }
+    // 403 and 404 send a single sentence
+    if (body && typeof body.detail === 'string') {
+        return body.detail;
     }
     return 'Could not save.';
 }
 
 // ---- All button clicks ----
 document.addEventListener('click', function (e) {
+
+    // Edit button inside a cooling place popup
+    if (e.target.classList && e.target.classList.contains('editBtn')) {
+        e.preventDefault();
+        const place = placesById[e.target.getAttribute('data-id')];
+        if (place) openEditForm(place);
+        return;
+    }
+
+    if (e.target.id === 'epSave') {
+        e.preventDefault();
+        const msg = document.getElementById('epMsg');
+        const id = e.target.getAttribute('data-id');
+        const name = document.getElementById('epName').value.trim();
+        const lat = parseFloat(document.getElementById('epLat').value);
+        const lon = parseFloat(document.getElementById('epLon').value);
+
+        if (!name) {
+            msg.textContent = 'Name is required.';
+            return;
+        }
+        if (isNaN(lat) || isNaN(lon)) {
+            msg.textContent = 'Latitude and longitude must be numbers.';
+            return;
+        }
+
+        e.target.textContent = 'Saving...';
+        msg.textContent = '';
+
+        fetch(API + '/api/cooling-places/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                place_type: document.getElementById('epType').value,
+                description: document.getElementById('epDesc').value.trim() || null,
+                lat: lat,
+                lon: lon
+            })
+        })
+        .then(res => res.json().then(body => {
+            if (res.status !== 200) throw new Error(readError(body));
+            return body;
+        }))
+        .then(function (saved) {
+            map.closePopup();
+            loadCoolingPlaces();
+
+            const type = currentType();
+            if (type && type !== saved.place_type) {
+                showMessage('Saved "' + saved.name + '" as ' + saved.place_type +
+                            ', but the current filter only shows ' + type + '.', 7000);
+            } else {
+                showMessage('Updated "' + saved.name + '" in the database.', 4000);
+            }
+        })
+        .catch(err => {
+            msg.textContent = err.message;
+            const b = document.getElementById('epSave');
+            if (b) b.textContent = 'Save changes';
+        });
+        return;
+    }
 
     if (e.target.id === 'findBtn') {
         e.preventDefault();
