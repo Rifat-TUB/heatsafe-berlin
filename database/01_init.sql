@@ -37,6 +37,30 @@ CREATE TABLE heat_zones (
 CREATE INDEX heat_zones_geom_idx ON heat_zones USING GIST (geom);
 
 -- ---------------------------------------------------------------
+-- Table 3: emergency_services  (points)
+--
+-- Hospitals near the pilot area. Every row here comes from the
+-- official Berlin hospital register, so no coordinate in this table
+-- was placed by hand. That matters more here than anywhere else in
+-- the project: a wrong hospital position is the one error in this
+-- application that could actually put someone at risk.
+-- ---------------------------------------------------------------
+CREATE TABLE emergency_services (
+    id           SERIAL PRIMARY KEY,
+    name         TEXT NOT NULL,
+    service_type TEXT NOT NULL
+                 CHECK (service_type IN ('hospital')),
+    address      TEXT,
+    operator     TEXT,
+    beds         INTEGER,
+    data_source  TEXT NOT NULL DEFAULT 'berlin_open_data'
+                 CHECK (data_source IN ('berlin_open_data')),
+    geom         geometry(Point, 4326) NOT NULL
+);
+
+CREATE INDEX emergency_services_geom_idx ON emergency_services USING GIST (geom);
+
+-- ---------------------------------------------------------------
 -- Data set 1: pilot cooling places
 -- The places themselves are real, but the coordinates were placed
 -- by hand for this pilot and are approximate.
@@ -160,3 +184,49 @@ INSERT INTO cooling_places (name, place_type, description, data_source, geom) VA
      'Oeffentlicher Trinkbrunnen, Betriebszeit Mai bis Oktober',
      'berlin_open_data',
      ST_Transform(ST_SetSRID(ST_MakePoint(394110.594, 5820902.686), 25833), 4326));
+
+-- ---------------------------------------------------------------
+-- Data set 3: hospitals near the pilot area
+--
+-- Source : Berlin Open Data portal, daten.berlin.de
+--          "Krankenhaeuser", layer Plankrankenhaeuser
+--          Provider: Senatsverwaltung fuer Wissenschaft,
+--          Gesundheit, Pflege und Gleichstellung
+-- License: Datenlizenz Deutschland - Zero - Version 2.0
+--          (dl-de-zero-2.0). Attribution is not required by this
+--          licence, but is given here anyway.
+--
+-- Downloaded straight from the WFS endpoint as GeoJSON in EPSG:4326,
+-- so the coordinates below are copied unchanged and need no
+-- ST_Transform. The WFS-Explorer export of the same layer returned
+-- broken coordinates, which is why the raw service was used instead.
+--
+-- Plankrankenhaeuser are the hospitals in the Berlin state hospital
+-- plan. The other layer of the same service holds specialist and
+-- rehabilitation clinics, which are not useful in a heat emergency.
+--
+-- Selection rule, applied with no hand-picking: every hospital in
+-- that layer within 3 km of Alexanderplatz (52.5219, 13.4132).
+-- Three qualify. 3 km is twice the radius of the pilot area, which
+-- is a reasonable allowance for an emergency.
+--
+-- Umlauts are written in ASCII (ae, oe, ue, ss) to match the rest of
+-- this file and to avoid encoding problems on load.
+-- ---------------------------------------------------------------
+INSERT INTO emergency_services
+    (name, service_type, address, operator, beds, geom) VALUES
+
+    ('St. Hedwig-Krankenhaus', 'hospital',
+     'Grosse Hamburger Strasse 5-11, 10115 Berlin',
+     'Alexianer St. Hedwig-Kliniken Berlin', 415,
+     ST_SetSRID(ST_MakePoint(13.39839853, 52.52591281), 4326)),
+
+    ('Vivantes Klinikum im Friedrichshain', 'hospital',
+     'Landsberger Allee 49, 10249 Berlin',
+     'Vivantes - Klinikum im Friedrichshain', 955,
+     ST_SetSRID(ST_MakePoint(13.43890404, 52.52448727), 4326)),
+
+    ('Campus Charite Mitte', 'hospital',
+     'Chariteplatz 1, 10117 Berlin',
+     'Charite', 893,
+     ST_SetSRID(ST_MakePoint(13.37819437, 52.52363436), 4326));

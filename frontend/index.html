@@ -97,6 +97,53 @@
             display: none;
         }
 
+        #emergency {
+            position: fixed;
+            top: 90px;
+            left: 12px;
+            width: 260px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.4);
+            font-size: 12px;
+            line-height: 1.4;
+            color: #333;
+            z-index: 1000;
+            display: none;
+            overflow: hidden;
+        }
+        #emergency .head {
+            background: #b3261e;
+            color: white;
+            padding: 9px 30px 9px 11px;
+            position: relative;
+        }
+        #emergency .head b {
+            display: block;
+            font-size: 15px;
+            margin-bottom: 3px;
+        }
+        #emergency .head span { font-size: 11px; }
+        #emergency .body { padding: 4px 11px 9px; }
+        #emergency .item {
+            padding: 7px 0;
+            border-top: 1px solid #eee;
+        }
+        #emergency .item:first-child { border-top: 0; }
+        #emergency .dist { font-weight: bold; }
+        #emergency .close {
+            position: absolute;
+            top: 5px;
+            right: 7px;
+            background: none;
+            border: 0;
+            color: white;
+            font-size: 19px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 2px 4px;
+        }
+
         /* ---- Small screens (phones) ---------------------------------
            Everything above stays exactly as it is on a desktop.
            These rules only switch on when the screen is narrow.        */
@@ -143,6 +190,17 @@
 
             /* Popups were sized for a desktop window */
             .leaflet-popup-content { font-size: 12px; margin: 8px 10px; }
+
+            /* The emergency panel spans the width on a phone and sits
+               below the header, where nothing else competes with it. */
+            #emergency {
+                top: 60px;
+                left: 8px;
+                right: 8px;
+                width: auto;
+                font-size: 11px;
+            }
+            #emergency .head b { font-size: 14px; }
         }
     </style>
 </head>
@@ -154,6 +212,7 @@
 
     <div id="map"></div>
     <div id="toast"></div>
+    <div id="emergency"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
@@ -351,6 +410,57 @@ function loadCoolingPlaces() {
 
 loadCoolingPlaces();
 
+// ---- Hospitals -------------------------------------------------
+// A red cross, deliberately outside the blue/orange family used for
+// cooling places, so an emergency point can never be mistaken for a
+// place to cool down. This table is read-only: every row comes from
+// the official register and there is no endpoint that can change it.
+function hospitalSvg(size) {
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 16 16">' +
+           '<circle cx="8" cy="8" r="7" fill="#b3261e" ' +
+           'stroke="#7a1912" stroke-width="1.5"/>' +
+           '<path d="M8 4.2 V11.8 M4.2 8 H11.8" stroke="#fff" ' +
+           'stroke-width="2.2" stroke-linecap="round"/></svg>';
+}
+
+let hospitalLayer = L.layerGroup().addTo(map);
+
+fetch(API + '/api/emergency-services')
+    .then(res => res.json())
+    .then(data => {
+        L.geoJSON(data, {
+            pointToLayer: (feature, latlng) => L.marker(latlng, {
+                icon: L.divIcon({
+                    html: hospitalSvg(20),
+                    className: 'src-icon',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10],
+                    popupAnchor: [0, -10]
+                })
+            }),
+            onEachFeature: (feature, layer) => {
+                const p = feature.properties;
+                const html =
+                    '<b>' + esc(p.name) + '</b><br>' +
+                    esc(p.address || '') + '<br>' +
+                    (p.beds ? p.beds + ' beds<br>' : '') +
+                    '<i style="font-size:11px">Source: Berlin Open Data ' +
+                    '(dl-de-zero-2.0)</i>' +
+                    '<div style="margin-top:6px;color:#b3261e">' +
+                    '<b>Medical emergency: call 112</b></div>';
+
+                layer.on('click', function (ev) {
+                    if (!mode) {
+                        L.popup().setLatLng(ev.latlng)
+                                 .setContent(html).openOn(map);
+                    }
+                });
+            }
+        }).addTo(hospitalLayer);
+    })
+    .catch(err => console.error('Emergency services failed:', err));
+
+
 // ---- Shared: show the nearest cooling place from a point ----
 let resultLayer = null;
 
@@ -473,6 +583,80 @@ function showWithin(lat, lon, radiusM) {
         .catch(err => console.error('Within failed:', err));
 }
 
+// ---- Emergency panel -------------------------------------------
+// Calling 112 is the correct first action in a medical emergency,
+// so it sits at the top in its own red band and the hospital list
+// is framed as information below it, never as an instruction.
+function hideEmergencyPanel() {
+    document.getElementById('emergency').style.display = 'none';
+}
+
+function showEmergencyPanel(rows) {
+    const el = document.getElementById('emergency');
+    el.innerHTML =
+        '<div class="head">' +
+        '<button class="close" id="emergClose" title="Close">&times;</button>' +
+        '<b>Medical emergency: call 112</b>' +
+        '<span>Free from any phone, no area code. The hospitals ' +
+        'below are information only and are not a substitute for ' +
+        'the emergency number.</span>' +
+        '</div>' +
+        '<div class="body">' + rows + '</div>';
+    el.style.display = 'block';
+}
+
+// ---- Nearest hospitals (PostGIS KNN, three results) ----
+function showHospitals(lat, lon) {
+    if (resultLayer) map.removeLayer(resultLayer);
+    resultLayer = L.layerGroup().addTo(map);
+
+    fetch(API + '/api/emergency-services/nearest?lat=' + lat +
+          '&lon=' + lon + '&limit=3')
+        .then(res => res.json())
+        .then(data => {
+            const list = data.results;
+            if (!list.length) {
+                showMessage('No hospital found in the database.', 5000);
+                return;
+            }
+
+            L.marker([lat, lon]).addTo(resultLayer)
+                .bindPopup('Your location', { autoPan: false });
+
+            const pts = [[lat, lon]];
+            let rows = '';
+
+            list.forEach(function (h, i) {
+                pts.push([h.lat, h.lon]);
+
+                // The closest one gets a solid, heavier line so the
+                // ranking is readable without opening anything.
+                L.polyline([[lat, lon], [h.lat, h.lon]], {
+                    color: '#b3261e',
+                    weight: i === 0 ? 3 : 1.5,
+                    opacity: i === 0 ? 0.9 : 0.45,
+                    dashArray: '6 6'
+                }).addTo(resultLayer);
+
+                rows += '<div class="item"><b>' + esc(h.name) + '</b><br>' +
+                        esc(h.address || '') + '<br>' +
+                        '<span class="dist">' + h.distance_m + ' m</span>' +
+                        ' &middot; straight line, measured by PostGIS</div>';
+            });
+
+            showEmergencyPanel(rows);
+
+            // Extra room on the left so the panel does not cover
+            // the markers it is describing.
+            map.fitBounds(L.latLngBounds(pts).pad(0.25), {
+                paddingTopLeft: [290, 120],
+                paddingBottomRight: [40, 40],
+                maxZoom: 16
+            });
+        })
+        .catch(err => console.error('Nearest hospital failed:', err));
+}
+
 // ---- Mode handling: only one map-click job at a time ----
 let mode = null;
 let pending = null;
@@ -486,13 +670,20 @@ function setMode(newMode) {
         mode === 'add' ? 'Click the map...' : 'Add place';
     document.getElementById('withinBtn').textContent =
         mode === 'within' ? 'Click the map...' : 'Within 500 m';
+    document.getElementById('emergBtn').textContent =
+        mode === 'hospital' ? 'Click the map...' : 'Nearest hospital';
+    // The hint belongs on the button the user has to press, so the
+    // GPS button says what it will look for while that tool is on.
+    document.getElementById('gpsBtn').textContent =
+        mode === 'hospital' ? 'Hospital near me' : 'Where am I';
     map.getContainer().style.cursor = mode ? 'crosshair' : '';
 }
 
 // ---- Layer control: switch each layer on and off ----
 L.control.layers(null, {
     'Heat risk zones': heatLayer,
-    'Cooling places': coolingLayer
+    'Cooling places': coolingLayer,
+    'Hospitals': hospitalLayer
 }, { collapsed: false }).addTo(map);
 
 // ---- Type filter (asks the API for one place_type only) ----
@@ -537,7 +728,9 @@ legend.onAdd = function () {
         '<b>Cooling places</b>' +
         sourceSvg('berlin_open_data', 14) + 'Official open data<br>' +
         sourceSvg('pilot_seed', 14) + 'Positioned by me<br>' +
-        sourceSvg('user_submitted', 14) + 'Added by an app user';
+        sourceSvg('user_submitted', 14) + 'Added by an app user' +
+        '<hr style="margin:5px 0;border:0;border-top:1px solid #ccc">' +
+        hospitalSvg(14) + 'Hospital (official register)';
     L.DomEvent.disableClickPropagation(div);
     return div;
 };
@@ -561,6 +754,7 @@ function makeButton(id, label, title) {
 makeButton('findBtn', 'Find nearest', 'Find nearest cooling place');
 makeButton('addBtn', 'Add place', 'Add a new cooling place');
 makeButton('withinBtn', 'Within 500 m', 'Count cooling places within 500 m');
+makeButton('emergBtn', 'Nearest hospital', 'Find the nearest hospitals');
 makeButton('gpsBtn', 'Where am I', 'Use my current location');
 
 // ---- The add form, shown as a map popup ----
@@ -714,8 +908,30 @@ document.addEventListener('click', function (e) {
         return;
     }
 
+    if (e.target.id === 'emergBtn') {
+        e.preventDefault();
+        setMode(mode === 'hospital' ? null : 'hospital');
+        return;
+    }
+
+    if (e.target.id === 'emergClose') {
+        e.preventDefault();
+        hideEmergencyPanel();
+        if (resultLayer) {
+            map.removeLayer(resultLayer);
+            resultLayer = null;
+        }
+        return;
+    }
+
     if (e.target.id === 'gpsBtn') {
         e.preventDefault();
+
+        // Remember the active tool before clearing it. Someone who
+        // feels unwell should not have to point at their own position
+        // on a map, so "Nearest hospital" accepts GPS as well as a
+        // map click.
+        const wanted = mode;
         setMode(null);
 
         // Ignore a second click while a request is still running
@@ -735,8 +951,14 @@ document.addEventListener('click', function (e) {
             function (pos) {
                 gpsBusy = false;
                 target.textContent = 'Where am I';
-                showNearest(pos.coords.latitude, pos.coords.longitude,
-                            'You are here (GPS)');
+
+                if (wanted === 'hospital') {
+                    showHospitals(pos.coords.latitude, pos.coords.longitude);
+                } else {
+                    hideEmergencyPanel();
+                    showNearest(pos.coords.latitude, pos.coords.longitude,
+                                'You are here (GPS)');
+                }
             },
             function (err) {
                 gpsBusy = false;
@@ -815,10 +1037,15 @@ map.on('click', function (e) {
     const lon = e.latlng.lng;
 
     if (mode === 'find') {
+        hideEmergencyPanel();
         showNearest(lat, lon, 'Your location');
     } else if (mode === 'within') {
+        hideEmergencyPanel();
         showWithin(lat, lon, 500);
+    } else if (mode === 'hospital') {
+        showHospitals(lat, lon);
     } else if (mode === 'add') {
+        hideEmergencyPanel();
         pending = { lat: lat, lon: lon };
         openAddForm(lat, lon);
     }

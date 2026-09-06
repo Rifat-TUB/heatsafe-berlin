@@ -265,3 +265,81 @@ def update_cooling_place(place_id: int, place: NewCoolingPlace):
         "lat": r[5],
         "lon": r[6],
     }
+
+
+# ---------------------------------------------------------------
+# GET: all emergency services (hospitals) as GeoJSON
+#
+# Every row in this table comes from the official Berlin hospital
+# register, so unlike cooling_places there is nothing here that was
+# placed by hand and no write endpoint to change it.
+# ---------------------------------------------------------------
+@app.get("/api/emergency-services")
+def emergency_services():
+    rows = query("""
+        SELECT json_build_object(
+            'type', 'FeatureCollection',
+            'features', COALESCE(json_agg(
+                json_build_object(
+                    'type', 'Feature',
+                    'geometry', ST_AsGeoJSON(geom)::json,
+                    'properties', json_build_object(
+                        'id', id,
+                        'name', name,
+                        'service_type', service_type,
+                        'address', address,
+                        'operator', operator,
+                        'beds', beds,
+                        'data_source', data_source
+                    )
+                )
+            ), '[]'::json)
+        )
+        FROM emergency_services;
+    """)
+    return rows[0][0]
+
+
+# ---------------------------------------------------------------
+# GET: nearest hospitals to a point (PostGIS KNN + ST_Distance)
+#
+# limit defaults to 3, not 1. In an emergency knowing a couple of
+# alternatives is more useful than a single answer, because the
+# closest hospital may not have a suitable emergency department.
+# ---------------------------------------------------------------
+@app.get("/api/emergency-services/nearest")
+def nearest_emergency_service(lat: float, lon: float, limit: int = 3):
+    rows = query("""
+        SELECT
+            id, name, address, operator, beds,
+            ST_Y(geom) AS lat,
+            ST_X(geom) AS lon,
+            ROUND(ST_Distance(
+                geom::geography,
+                ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+            )) AS distance_m
+        FROM emergency_services
+        ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+        LIMIT %s;
+    """, (lon, lat, lon, lat, limit))
+
+    return {
+        "query_point": {"lat": lat, "lon": lon},
+        "emergency_number": "112",
+        "notice": "In a medical emergency call 112. This list is "
+                  "information only and is not a substitute for "
+                  "emergency services.",
+        "results": [
+            {
+                "id": r[0],
+                "name": r[1],
+                "address": r[2],
+                "operator": r[3],
+                "beds": r[4],
+                "lat": r[5],
+                "lon": r[6],
+                "distance_m": int(r[7]),
+            }
+            for r in rows
+        ],
+    }
