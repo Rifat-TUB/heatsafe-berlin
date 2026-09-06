@@ -39,7 +39,7 @@ indoor spaces and waterfronts. The *shape* of the symbol tells you where the
 point came from - see "About the data" below. Clicking one shows its name,
 type, description and source.
 
-There are four buttons in the top right corner.
+There are five buttons in the top right corner.
 
 **Find nearest.** Press it, then click anywhere on the map. The nearest
 cooling place is highlighted, a dashed line is drawn to it, and the distance
@@ -56,11 +56,29 @@ enter a name, pick a type and save. The new place is written to the database
 through the API and appears on the map immediately. Coordinates outside the
 pilot area are rejected by the API with a clear message.
 
+**Nearest hospital.** Press it, then either click the map or press the GPS
+button, which changes to "Hospital near me" while this tool is active. A panel
+opens on the left. The emergency number **112** comes first, in its own band,
+because calling it is the right first action in a medical emergency. The three
+nearest hospitals are listed below it as information, with the distance to
+each. Someone who feels unwell should not have to point at their own position
+on a map, which is why GPS works here as well as a map click.
+
 **Where am I.** Uses the browser's geolocation to find your position and then
 runs the nearest search from there. If you refuse the permission, the app says
-so instead of hanging.
+so instead of hanging. Browsers only allow geolocation on `localhost` or over
+HTTPS, so this one button fails if you open the app from another device using
+the machine's IP address, while everything else still works.
 
-There is also a **type filter** ("Show type") and a **layer control**. The
+**Editing.** Clicking a cooling place opens a popup with an **Edit** button.
+It reopens the same form with the current values filled in, including
+latitude and longitude, so both the attributes and the geometry can be
+changed. Saving sends a `PUT` to the API. Official open data points have no
+Edit button and the API refuses to change them, so the published record stays
+as published.
+
+There is also a **type filter** ("Show type") and a **layer control** with
+three layers: heat zones, cooling places and hospitals. The
 filter is applied by SQL in the database, not in the browser - it changes what
 the API returns, and it also narrows the "Find nearest" and "Within 500 m"
 searches, so "nearest drinking fountain" and "nearest park" give different
@@ -94,9 +112,22 @@ database container starts, from `database/01_init.sql`.
 | GET | `/api/health` | Service status and PostGIS version |
 | GET | `/api/cooling-places?place_type=` | All cooling places as GeoJSON, optionally filtered by type |
 | POST | `/api/cooling-places` | Creates a new cooling place |
+| PUT | `/api/cooling-places/{id}` | Updates an existing cooling place, attributes and geometry |
 | GET | `/api/heat-zones` | All heat zones as GeoJSON |
 | GET | `/api/cooling-places/nearest?lat=&lon=&limit=&place_type=` | Nearest cooling place(s) with distance in metres |
 | GET | `/api/cooling-places/within?lat=&lon=&radius_m=&place_type=` | Every cooling place inside a radius, with a count |
+| GET | `/api/emergency-services` | All hospitals as GeoJSON |
+| GET | `/api/emergency-services/nearest?lat=&lon=&limit=` | Nearest hospitals with distance in metres |
+
+`PUT` never touches the `data_source` column - it is not in the `SET` clause,
+so no edit can turn a hand-placed point into an official one. Records with
+`data_source = 'berlin_open_data'` are refused with 403, because editing one
+would leave a changed record still labelled as official portal data. An
+unknown id returns 404.
+
+There is no write endpoint of any kind for `emergency_services`. Everything in
+that table comes from the official register and nothing in the application can
+change it.
 
 Examples:
 
@@ -116,13 +147,16 @@ wrong. All SQL uses parameters, never string concatenation.
 
 ## Database
 
-Two tables, both with PostGIS geometry columns in EPSG:4326 and GiST spatial
+Three tables, all with PostGIS geometry columns in EPSG:4326 and GiST spatial
 indexes:
 
 - `cooling_places` - 20 points
 - `heat_zones` - 8 polygons
+- `emergency_services` - 3 hospital points
 
-Both tables have a `data_source` column, so every row says where it came from.
+All three have a `data_source` column, so every row says where it came from.
+On `emergency_services` a `CHECK` constraint allows only `berlin_open_data`,
+so nothing hand-placed can enter that table even by mistake.
 
 To look inside the database yourself:
 
@@ -202,25 +236,52 @@ code changes, only a different `01_init.sql`.
 
 Tiles from OpenStreetMap ((c) OpenStreetMap contributors, ODbL).
 
+### Hospitals (`berlin_open_data`, 3 points)
+
+From the Berlin Open Data portal, daten.berlin.de: **"Krankenhaeuser"**,
+layer *Plankrankenhaeuser*, published by the Senatsverwaltung fuer
+Wissenschaft, Gesundheit, Pflege und Gleichstellung.
+Licence: Datenlizenz Deutschland - Zero - Version 2.0 (dl-de-zero-2.0).
+Attribution is not required by that licence; it is given here anyway.
+
+This is the one layer where a wrong coordinate could actually put someone at
+risk, so nothing here was placed by hand. Two things follow from that.
+
+First, on how it was downloaded. The WFS-Explorer export of this layer
+returned broken geometry - every hospital came out at roughly
+`10.51, 0.0005`, a point in the Atlantic, although each feature's `bbox`
+still held the correct Berlin position. The file in `data/` was therefore
+requested straight from the WFS endpoint as GeoJSON in EPSG:4326, which
+returns correct coordinates. They are copied into `01_init.sql` unchanged and
+need no `ST_Transform`.
+
+Second, on which hospitals are included. The rule is mechanical, with no
+hand-picking: every hospital in that layer within 3 km of Alexanderplatz
+(52.5219, 13.4132). Three qualify - St. Hedwig-Krankenhaus, Vivantes Klinikum
+im Friedrichshain and Campus Charite Mitte. 3 km is twice the radius of the
+pilot area, which is a reasonable allowance for an emergency. The service has
+a second layer, *Weitere Krankenhaeuser*, which holds specialist and
+rehabilitation clinics; it is not used, because an eye clinic is not useful
+in a heat emergency.
+
 ## Limitations
 
-Things this version does not do, or does not do well:
+Three things to know before reading anything into what this app shows:
 
-- **The heat zones are self-digitized estimates**, as explained above. This is
-  the biggest limitation and the reason the app is a demonstration rather than
-  a tool anyone should act on in real heat.
-- **"Where am I" only works on `localhost` or over HTTPS.** Browsers block
-  geolocation on plain HTTP. If you open the app from another device using the
-  machine's IP address, that one button will fail while everything else works.
-- **The official fountain dataset does not cover Mitte.** Alexanderplatz
-  itself has no official points, only hand-placed ones.
-- **There is no login.** Anyone who can reach the API can read it and add
-  cooling places to it. There is no moderation of what gets submitted.
-- **Nothing can be edited or deleted** once it is added.
-- **Data added through the app lives in the Docker volume.** Running
-  `docker compose down -v` deletes it and restores the seed data.
-- **The pilot area is small.** The architecture would extend to the rest of
-  Berlin, but nothing has been tested at that size.
+- **The heat zones are self-digitized estimates**, as explained above. They
+  are my visual reading of land cover, not measured or modelled temperature.
+  This is the biggest limitation and the reason the app is a demonstration
+  rather than a tool anyone should act on in real heat.
+- **The hospital layer is not a triage tool, and its distances are straight
+  lines.** The register says where hospitals are, not which run a 24-hour
+  emergency department or have capacity now. `ST_Distance` measures across the
+  ground and ignores streets, rivers and bridges, so 800 m in a straight line
+  can be a much longer walk. Only the three hospitals within 3 km of
+  Alexanderplatz are loaded. This is why the panel puts 112 above the list.
+- **There is no login, and anything a user adds can be edited by anyone
+  else.** Nothing is moderated and no change is attributed. Official open data
+  is the exception: the API refuses to alter it. Nothing can be deleted, and
+  data added through the app is lost on `docker compose down -v`.
 
 ## Folder structure
 
@@ -236,6 +297,7 @@ heatsafe-berlin/
     cooling_places.csv
     heat_zones.geojson
     trinkbrunnen_friedrichshain_kreuzberg.geojson
+    krankenhaeuser_plankrankenhaeuser_wfs.geojson
   frontend/           Leaflet client
     index.html
     nginx.conf
