@@ -1,7 +1,7 @@
 import os
 import json
 import psycopg
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -210,4 +210,58 @@ def cooling_places_within(
             }
             for r in rows
         ],
+    }
+
+# ---------------------------------------------------------------
+# PUT: update an existing cooling place
+#
+# Updates attributes AND geometry, so this is a real spatial update.
+#
+# Two provenance rules are enforced here:
+#   1. data_source is NOT in the SET clause, so it can never be changed
+#      by an edit. A hand-placed point can never become "official".
+#   2. Records that came from Berlin Open Data are read-only. Editing
+#      them would leave a modified record still labelled as official
+#      portal data, which would be a false attribution.
+# ---------------------------------------------------------------
+@app.put("/api/cooling-places/{place_id}")
+def update_cooling_place(place_id: int, place: NewCoolingPlace):
+    existing = query(
+        "SELECT data_source FROM cooling_places WHERE id = %s;",
+        (place_id,),
+    )
+
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No cooling place with id {place_id}",
+        )
+
+    if existing[0][0] == "berlin_open_data":
+        raise HTTPException(
+            status_code=403,
+            detail="Official open data records are read-only and cannot be edited.",
+        )
+
+    rows = query("""
+        UPDATE cooling_places
+        SET name        = %s,
+            place_type  = %s,
+            description = %s,
+            geom        = ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+        WHERE id = %s
+        RETURNING id, name, place_type, description, data_source,
+                  ST_Y(geom), ST_X(geom);
+    """, (place.name, place.place_type, place.description,
+          place.lon, place.lat, place_id))
+
+    r = rows[0]
+    return {
+        "id": r[0],
+        "name": r[1],
+        "place_type": r[2],
+        "description": r[3],
+        "data_source": r[4],
+        "lat": r[5],
+        "lon": r[6],
     }
